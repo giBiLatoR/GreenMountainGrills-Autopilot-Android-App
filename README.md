@@ -1,6 +1,8 @@
-# GMG Control
+# GreenMountainGrills — Autopilot Android App
 
 **A standalone Android app to monitor and control a Green Mountain Grills (GMG) pellet smoker directly over your local Wi-Fi — no Home Assistant, no GMG cloud, no internet.**
+
+> The installed app is named **GMG Control** on your device.
 
 GMG Control talks to the grill's controller over plain UDP on your LAN. Once your
 smoker is on Wi-Fi (and Server Mode is off), the official GMG app is never needed
