@@ -48,7 +48,7 @@ commands terminated with `!`, and a binary status frame in reply. There is no au
 TLS, and no cloud involved when the grill is in local Wi-Fi mode.
 
 The protocol, cook-time physics, and auto-cook state machine are a faithful port of the
-[Green Mountain Grills Home Assistant integration](https://github.com/giBiLatoR/Green-Mountain-Grills),
+[Green Mountain Grills Home Assistant integration](https://github.com/HallyAus/Green-Mountain-Grills),
 re-implemented in Kotlin and covered by unit tests (including a parse test against a real
 status frame captured from hardware). All the Home-Assistant-specific machinery
 (coordinator, entities, options flow, persistent notifications) is replaced with native
@@ -161,9 +161,19 @@ Redirect build output to a local disk:
 
 ## Credits
 
-Protocol, cook-physics, and auto-cook logic ported from the
-[Green Mountain Grills Home Assistant integration](https://github.com/giBiLatoR/Green-Mountain-Grills).
-Smoker model artwork originates from that integration.
+Protocol, cook-physics, and auto-cook logic are ported from the original
+[Green Mountain Grills Home Assistant integration](https://github.com/HallyAus/Green-Mountain-Grills)
+by **[hallyaus](https://github.com/HallyAus)**, which is MIT-licensed. Smoker model
+artwork originates from that project. Huge thanks to hallyaus for the reverse-engineering
+and the clean, well-documented implementation that made this port possible.
+
+---
+
+## License
+
+[MIT](LICENSE). This project is a derivative of hallyaus's MIT-licensed
+[Green Mountain Grills Home Assistant integration](https://github.com/HallyAus/Green-Mountain-Grills);
+the original copyright notice is retained in [`LICENSE`](LICENSE) as the MIT terms require.
 
 ---
 
