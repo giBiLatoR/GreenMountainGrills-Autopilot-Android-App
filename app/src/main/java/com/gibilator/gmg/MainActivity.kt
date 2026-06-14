@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
             GmgTheme {
                 Surface(Modifier.fillMaxSize()) {
                     val vm: GrillViewModel = viewModel()
-                    GmgNav(vm)
+                    GmgNav(vm, onQuit = { finishAndRemoveTask() })
                 }
             }
         }

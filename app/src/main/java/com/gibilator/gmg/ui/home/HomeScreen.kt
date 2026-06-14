@@ -35,6 +35,7 @@ import com.gibilator.gmg.cook.CookState
 import com.gibilator.gmg.data.ConnState
 import com.gibilator.gmg.data.GmgPrefs
 import com.gibilator.gmg.data.GrillUiState
+import com.gibilator.gmg.protocol.PowerState
 import com.gibilator.gmg.ui.components.AnimatedTempReadout
 import com.gibilator.gmg.ui.components.Confetti
 import com.gibilator.gmg.ui.components.CookChart
@@ -130,6 +131,7 @@ fun HomeScreen(
             }
 
             ManualControls(
+                on = snapshot.powerState != PowerState.OFF,
                 grillSet = snapshot.grillSetTemp,
                 probe1Target = snapshot.probe1Target,
                 probe2Target = snapshot.probe2Target,
@@ -209,6 +211,7 @@ private fun LiveCookSection(
 
 @Composable
 private fun ManualControls(
+    on: Boolean,
     grillSet: Int,
     probe1Target: Int,
     probe2Target: Int,
@@ -220,14 +223,21 @@ private fun ManualControls(
 ) {
     SectionCard("MANUAL CONTROL") {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            ControlRow("Grill heat", Ember) {
-                Stepper(grillSet, { onSetGrillTemp(it) }, step = 5, min = 150, max = maxPit, unit = "°")
+            if (!on) {
+                Text(
+                    "Turn the grill on (START) to adjust temperatures.",
+                    color = Muted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-            ControlRow("Food target (probe 1)", ProbeBlue) {
-                Stepper(probe1Target, { onSetProbeTarget(1, it) }, step = 5, min = 32, max = 257, unit = "°")
+            ControlRow("Grill heat", Ember, on) {
+                Stepper(grillSet, { onSetGrillTemp(it) }, step = 5, min = 150, max = maxPit, unit = "°", enabled = on)
             }
-            ControlRow("Food target (probe 2)", ProbeBlue) {
-                Stepper(probe2Target, { onSetProbeTarget(2, it) }, step = 5, min = 32, max = 257, unit = "°")
+            ControlRow("Food target (probe 1)", ProbeBlue, on) {
+                Stepper(probe1Target, { onSetProbeTarget(1, it) }, step = 5, min = 32, max = 257, unit = "°", enabled = on)
+            }
+            ControlRow("Food target (probe 2)", ProbeBlue, on) {
+                Stepper(probe2Target, { onSetProbeTarget(2, it) }, step = 5, min = 32, max = 257, unit = "°", enabled = on)
             }
             OutlinedButton(onClick = onColdSmoke, modifier = Modifier.fillMaxWidth()) {
                 Text("❄  Cold smoke (smoke without heat)")
@@ -237,9 +247,19 @@ private fun ManualControls(
 }
 
 @Composable
-private fun ControlRow(label: String, color: androidx.compose.ui.graphics.Color, control: @Composable () -> Unit) {
+private fun ControlRow(
+    label: String,
+    color: androidx.compose.ui.graphics.Color,
+    enabled: Boolean,
+    control: @Composable () -> Unit,
+) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = color, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(
+            label,
+            color = if (enabled) color else Muted.copy(alpha = 0.5f),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
         control()
     }
 }

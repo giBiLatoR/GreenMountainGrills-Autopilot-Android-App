@@ -55,7 +55,7 @@ private val tabs = listOf(
 )
 
 @Composable
-fun GmgNav(vm: GrillViewModel) {
+fun GmgNav(vm: GrillViewModel, onQuit: () -> Unit) {
     val prefs by vm.prefs.collectAsStateWithLifecycle()
     val state by vm.uiState.collectAsStateWithLifecycle()
     val preview by vm.preview.collectAsStateWithLifecycle()
@@ -163,7 +163,7 @@ fun GmgNav(vm: GrillViewModel) {
                     onDevMode = vm::setDevMode,
                     onTempUnit = vm::setTempUnit,
                     onWeightUnit = vm::setWeightUnit,
-                    onStopMonitoring = vm::stopMonitoring,
+                    onStopMonitoring = { vm.stopMonitoring(); onQuit() },
                 )
             }
         }

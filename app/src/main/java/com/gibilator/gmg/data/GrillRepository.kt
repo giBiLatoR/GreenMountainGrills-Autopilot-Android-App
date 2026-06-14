@@ -144,19 +144,21 @@ class GrillRepository(
 
     // --- commands (clamp + refresh, like the coordinator) ------------------
 
-    suspend fun setGrillTemp(f: Int) {
-        client?.setGrillTemp(max(150, min(maxPitF, f)))
+    // Every command is wrapped so a failed/unacknowledged UDP write (common when
+    // the grill is off or briefly unreachable) surfaces as an error in the UI
+    // state instead of an uncaught coroutine exception that crashes the app.
+    private suspend fun command(block: suspend () -> Unit) {
+        runCatching { block() }.onFailure { e ->
+            _state.value = _state.value.copy(error = e.message ?: "That didn't go through — try again.")
+        }
         pollOnce()
     }
 
-    suspend fun setProbeTarget(probe: Int, f: Int) {
-        client?.setProbeTarget(probe, f)
-        pollOnce()
-    }
-
-    suspend fun powerOn() { client?.powerOn(); pollOnce() }
-    suspend fun powerOff() { client?.powerOff(); pollOnce() }
-    suspend fun coldSmoke() { client?.coldSmoke(); pollOnce() }
+    suspend fun setGrillTemp(f: Int) = command { client?.setGrillTemp(max(150, min(maxPitF, f))) }
+    suspend fun setProbeTarget(probe: Int, f: Int) = command { client?.setProbeTarget(probe, f) }
+    suspend fun powerOn() = command { client?.powerOn() }
+    suspend fun powerOff() = command { client?.powerOff() }
+    suspend fun coldSmoke() = command { client?.coldSmoke() }
 
     fun preFlight(meatKey: String, weightKg: Double, finishInHours: Double): PreFlightResult =
         cookManager.preFlight(meatKey, weightKg, finishInHours)

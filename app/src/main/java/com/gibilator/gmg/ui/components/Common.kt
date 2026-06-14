@@ -107,7 +107,7 @@ fun SectionCard(
     }
 }
 
-/** A −/value/+ stepper for setpoints. */
+/** A −/value/+ stepper for setpoints. Disabled (greyed) when [enabled] is false. */
 @Composable
 fun Stepper(
     value: Int,
@@ -117,6 +117,7 @@ fun Stepper(
     max: Int,
     unit: String,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier,
@@ -125,17 +126,19 @@ fun Stepper(
     ) {
         FilledTonalIconButton(
             onClick = { onChange((value - step).coerceIn(min, max)) },
+            enabled = enabled,
             modifier = Modifier.size(44.dp),
             shape = CircleShape,
         ) { Icon(Icons.Rounded.Remove, contentDescription = "Lower") }
         Text(
             "$value$unit",
             style = MaterialTheme.typography.titleLarge,
-            color = Bone,
+            color = if (enabled) Bone else com.gibilator.gmg.ui.theme.Muted.copy(alpha = 0.5f),
             modifier = Modifier.padding(horizontal = 4.dp),
         )
         FilledTonalIconButton(
             onClick = { onChange((value + step).coerceIn(min, max)) },
+            enabled = enabled,
             modifier = Modifier.size(44.dp),
             shape = CircleShape,
         ) { Icon(Icons.Rounded.Add, contentDescription = "Raise") }
