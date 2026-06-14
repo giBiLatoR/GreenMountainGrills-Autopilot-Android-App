@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gibilator.gmg.ui.components.RadarScan
 import com.gibilator.gmg.ui.components.SectionCard
+import com.gibilator.gmg.ui.components.WifiSetupCard
 import com.gibilator.gmg.ui.theme.Ember
 import com.gibilator.gmg.ui.theme.Muted
 import com.gibilator.gmg.vm.DiscoveryUi
@@ -86,6 +87,7 @@ fun GrillsScreen(
                 "No grill found yet. Make sure the smoker is on and on the same Wi-Fi, then search again — or enter its IP below.",
                 color = Muted,
             )
+            WifiSetupCard()
         }
 
         OutlinedButton(onClick = onRunDiscovery, modifier = Modifier.fillMaxWidth()) {

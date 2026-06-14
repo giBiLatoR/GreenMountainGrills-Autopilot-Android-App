@@ -42,6 +42,7 @@ import com.gibilator.gmg.ui.components.ProgressRing
 import com.gibilator.gmg.ui.components.SectionCard
 import com.gibilator.gmg.ui.components.SmokerHero
 import com.gibilator.gmg.ui.components.Stepper
+import com.gibilator.gmg.ui.components.WifiSetupCard
 import com.gibilator.gmg.ui.components.tempUnit
 import com.gibilator.gmg.ui.theme.Ember
 import com.gibilator.gmg.ui.theme.GoodGreen
@@ -94,12 +95,14 @@ fun HomeScreen(
         ) {
             if (state.conn == ConnState.ServerMode) {
                 SectionCard(null) {
-                    Text("Can't reach the grill", color = WarnRed, fontWeight = FontWeight.Bold)
+                    Text("Server Mode is on", color = WarnRed, fontWeight = FontWeight.Bold)
                     Text(
-                        "Your smoker may be in Server Mode or off the network. It needs to be on the same Wi-Fi.",
+                        "Your grill is routing through GMG's cloud, which blocks local control. " +
+                            "Open the GMG app, go to WiFi Settings, and turn Server Mode OFF — then it'll work here.",
                         color = Muted,
                     )
                 }
+                WifiSetupCard(title = "How to turn Server Mode off")
             }
 
             SmokerHero(
