@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch theme only; Compose (GmgTheme) owns the real colors at runtime. -->
+    <style name="Theme.GMGControl" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/gmg_charcoal</item>
+        <item name="android:statusBarColor">@color/gmg_charcoal</item>
+        <item name="android:navigationBarColor">@color/gmg_charcoal</item>
+    </style>
+</resources>

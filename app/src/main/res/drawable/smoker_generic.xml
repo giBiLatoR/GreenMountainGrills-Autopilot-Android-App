@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="220dp"
+    android:height="180dp"
+    android:viewportWidth="220"
+    android:viewportHeight="180">
+    <!-- Simple pellet-smoker silhouette fallback. -->
+    <path
+        android:fillColor="#3A2F29"
+        android:pathData="M40,70h120a14,14 0,0 1,14 14v36a14,14 0,0 1,-14 14h-120a14,14 0,0 1,-14 -14v-36a14,14 0,0 1,14 -14z" />
+    <path
+        android:fillColor="#4A3D35"
+        android:pathData="M150,52h28a10,10 0,0 1,10 10v28a10,10 0,0 1,-10 10h-28z" />
+    <path android:fillColor="#2A211C" android:pathData="M150,140h12v22h-12z" />
+    <path android:fillColor="#2A211C" android:pathData="M44,140h12v22h-12z" />
+    <path android:fillColor="#5A4A40" android:pathData="M70,86h70v10h-70z" />
+</vector>
