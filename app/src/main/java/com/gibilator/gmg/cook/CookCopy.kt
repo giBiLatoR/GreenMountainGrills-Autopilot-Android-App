@@ -33,9 +33,11 @@ object CookCopy {
 
     /**
      * One or two sentences explaining what's happening now and what to expect,
-     * driven by the current phase. [deltaF] = expected − actual (>0 = behind).
+     * driven by the current phase. The ahead/behind/on-track status is shown
+     * separately by [scheduleBadge] — keep it out of here so the two can't
+     * disagree.
      */
-    fun whatsHappening(phaseKey: String, deltaF: Double?, pullF: Int, tempUnit: String): String {
+    fun whatsHappening(phaseKey: String, pullF: Int, tempUnit: String): String {
         val pull = if (tempUnit == "C") "${((pullF - 32) * 5 / 9.0).toInt()}°C" else "$pullF°F"
         return when (phaseKey) {
             "pre_stall" -> "Your food is warming up nicely. Sit back — the first hour or two is just gentle smoke."
@@ -48,13 +50,16 @@ object CookCopy {
             "approaching" -> "Within a few degrees of $pull. Get your plates ready — almost time to pull it."
             "pull_reached" -> "It's hit $pull. Pull it off, let it rest, and dig in!"
             else -> "Cooking along nicely."
-        }.let { base ->
-            when {
-                deltaF == null -> base
-                deltaF > 8 -> "$base\n\nRunning a touch behind schedule — that's okay, low-and-slow rewards patience."
-                deltaF < -8 -> "$base\n\nRunning a little ahead of schedule — looking good."
-                else -> "$base\n\nRight on track ✓"
-            }
+        }
+    }
+
+    /** Schedule status from [deltaF] (= expected − actual; >0 = behind). */
+    fun scheduleBadge(deltaF: Double?): Pair<String, Boolean>? {
+        if (deltaF == null) return null
+        return when {
+            kotlin.math.abs(deltaF) <= 8 -> "On track ✓" to true
+            deltaF > 0 -> "Running behind — that's okay" to false
+            else -> "Running ahead — looking good" to true
         }
     }
 }

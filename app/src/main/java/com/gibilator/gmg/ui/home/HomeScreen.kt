@@ -188,16 +188,12 @@ private fun LiveCookSection(
                 centerBottom = pull?.let { "of ${com.gibilator.gmg.ui.components.fmtTempF(it, unit)} · $remaining" } ?: remaining,
             )
             Spacer(Modifier.height(8.dp))
-            cook.onSchedule?.let {
-                Text(
-                    if (it) "On track ✓" else "Running behind — that's okay",
-                    color = if (it) GoodGreen else Ember,
-                    fontWeight = FontWeight.SemiBold,
-                )
+            CookCopy.scheduleBadge(cook.deltaF)?.let { (txt, good) ->
+                Text(txt, color = if (good) GoodGreen else Ember, fontWeight = FontWeight.SemiBold)
             }
             cook.phaseKey?.let { key ->
                 Text(
-                    CookCopy.whatsHappening(key, cook.deltaF, pull ?: 0, unit),
+                    CookCopy.whatsHappening(key, pull ?: 0, unit),
                     color = Muted,
                     modifier = Modifier.padding(top = 8.dp),
                 )
