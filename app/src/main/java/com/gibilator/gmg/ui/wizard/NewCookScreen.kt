@@ -19,10 +19,16 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -173,18 +179,56 @@ private fun WeightStep(weightKg: Float, wUnit: String, onChange: (Float) -> Unit
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FinishStep(finishH: Float, onChange: (Float) -> Unit) {
+    var byClock by remember { mutableStateOf(false) }
     Column {
         Text("When do you want to eat?", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(8.dp))
-        val h = finishH.toInt(); val m = ((finishH - h) * 60).toInt()
-        Text("In ${h}h ${m}m", style = MaterialTheme.typography.headlineLarge, color = Ember)
+        Spacer(Modifier.height(12.dp))
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(selected = !byClock, onClick = { byClock = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) {
+                Text("In hours")
+            }
+            SegmentedButton(selected = byClock, onClick = { byClock = true }, shape = SegmentedButtonDefaults.itemShape(1, 2)) {
+                Text("At a time")
+            }
+        }
         Spacer(Modifier.height(16.dp))
-        Slider(value = finishH, onValueChange = onChange, valueRange = 1f..30f, steps = 57)
-        Text("The app picks a grill temperature to hit this finish time.", color = Muted, style = MaterialTheme.typography.bodyMedium)
+        val h = finishH.toInt(); val m = ((finishH - h) * 60).toInt()
+        if (!byClock) {
+            Text("In ${h}h ${m}m", style = MaterialTheme.typography.headlineLarge, color = Ember)
+            Spacer(Modifier.height(16.dp))
+            Slider(value = finishH, onValueChange = onChange, valueRange = 1f..30f, steps = 57)
+            Text("The app picks a grill temperature to hit this finish time.", color = Muted, style = MaterialTheme.typography.bodyMedium)
+        } else {
+            val picker = rememberTimePickerState(initialHour = 18, initialMinute = 0, is24Hour = false)
+            // Convert the chosen clock time into hours-from-now whenever it changes.
+            LaunchedEffect(picker.hour, picker.minute) {
+                onChange(hoursUntil(picker.hour, picker.minute).toFloat().coerceIn(1f, 30f))
+            }
+            TimePicker(state = picker)
+            Text(
+                "Ready about ${readyTimeLabel(picker.hour, picker.minute)}  (in ${h}h ${m}m)",
+                color = Ember, style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                "Includes the ~10 min startup. If the time's already passed today, it plans for tomorrow.",
+                color = Muted, style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }
+
+private fun hoursUntil(hour: Int, minute: Int): Double {
+    val now = java.time.LocalDateTime.now()
+    var target = now.withHour(hour).withMinute(minute).withSecond(0).withNano(0)
+    if (!target.isAfter(now)) target = target.plusDays(1)
+    return java.time.Duration.between(now, target).toMinutes() / 60.0
+}
+
+private fun readyTimeLabel(hour: Int, minute: Int): String =
+    java.time.LocalTime.of(hour, minute).format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
 
 @Composable
 private fun ModeStep(mode: CookMode, onSelect: (CookMode) -> Unit) {
@@ -228,7 +272,13 @@ private fun PlanStep(preview: PreviewUi?, unit: String) {
                     Text("Grill heat: ", color = Muted)
                     Text(fmtTempF(preview.pitTargetF, unit), color = Ember, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
                 }
-                Text("Ready in about ${"%.1f".format(preview.totalHours)} hours", color = MaterialTheme.colorScheme.onSurface)
+                Text("Cook time about ${"%.1f".format(preview.totalHours)} hours", color = MaterialTheme.colorScheme.onSurface)
+                if (preview.preheatMin > 0 || preview.restMin > 0) {
+                    Text(
+                        "Plus ~${preview.preheatMin} min startup + ${preview.restMin} min rest before serving.",
+                        color = Muted, style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 Spacer(Modifier.height(16.dp))
                 Text("WHAT TO EXPECT", style = MaterialTheme.typography.labelSmall, color = Muted)
                 Spacer(Modifier.height(6.dp))

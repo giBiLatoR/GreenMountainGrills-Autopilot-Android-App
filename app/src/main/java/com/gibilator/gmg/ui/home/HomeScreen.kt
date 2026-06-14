@@ -203,7 +203,11 @@ private fun LiveCookSection(
                 )
             }
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onMeatOn, modifier = Modifier.weight(1f)) { Text("Meat is on") }
+                // "Meat is on" only matters before the cook is tracking — once it's
+                // started (auto-detected or via this button), drop the option.
+                if (cook.elapsedMin == null) {
+                    OutlinedButton(onClick = onMeatOn, modifier = Modifier.weight(1f)) { Text("Meat is on") }
+                }
                 OutlinedButton(onClick = onAbort, modifier = Modifier.weight(1f)) { Text("Stop", color = WarnRed) }
             }
         }

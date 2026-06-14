@@ -222,8 +222,10 @@ class CookManager(
         if (weightKg <= 0) throw CookManagerError("weight must be > 0 kg")
         if (finishInHours <= 0.5) throw CookManagerError("finish time too soon (>0.5h required)")
         val weightLbs = weightKg * 2.20462
-        val cookHrs = finishInHours - (meat.restMin / 60.0) - 0.5
-        if (cookHrs <= 0.25) throw CookManagerError("not enough cook time after rest + preheat budget")
+        // Total window = startup (light-up to temp) + cook + rest. Reserve the
+        // startup and rest out of the user's finish target so the cook lands on time.
+        val cookHrs = finishInHours - (meat.restMin / 60.0) - (PREHEAT_MINUTES / 60.0)
+        if (cookHrs <= 0.25) throw CookManagerError("not enough cook time after startup + rest budget")
         var pitTarget = findExactTemp(meatKey, weightLbs, cookHrs)
         pitTarget = max(PIT_CLAMP_MIN_F.toDouble(), min(maxPitF.toDouble(), pitTarget.roundToInt().toDouble()))
         val projection = computeAt(meatKey, weightLbs, pitTarget)
@@ -539,6 +541,8 @@ class CookManager(
         // Grill's minimum operating temp. Setpoint writes are held until the grill
         // reaches this during cold start, or the controller gets confused.
         const val LAUNCH_READY_TEMP_F = 150
+        // Typical light-up-to-temp startup time, reserved in the finish-time plan.
+        const val PREHEAT_MINUTES = 10.0
         const val COOK_START_DROP_F = 30.0
         const val COOK_START_WINDOW_S = 60.0
         const val PREHEAT_BAND_F = 10

@@ -6,6 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gibilator.gmg.GmgApp
 import com.gibilator.gmg.cook.CookMode
+import com.gibilator.gmg.cook.CookManager
+import com.gibilator.gmg.cook.CookPhysics.CP_MEATS
 import com.gibilator.gmg.cook.CookPhysics.Phase
 import com.gibilator.gmg.data.GmgPrefs
 import com.gibilator.gmg.data.GrillUiState
@@ -28,6 +30,8 @@ data class PreviewUi(
     val totalHours: Double = 0.0,
     val phases: List<Phase> = emptyList(),
     val warnings: List<String> = emptyList(),
+    val restMin: Int = 0,
+    val preheatMin: Int = 0,
     val error: String? = null,
 )
 
@@ -96,7 +100,14 @@ class GrillViewModel(app: Application) : AndroidViewModel(app) {
     fun preview(meatKey: String, weightKg: Double, finishInHours: Double) {
         _preview.value = try {
             val pf = repo.preFlight(meatKey, weightKg, finishInHours)
-            PreviewUi(pf.pitTargetF, pf.projection.totalHours, pf.projection.phases, pf.warnings)
+            PreviewUi(
+                pitTargetF = pf.pitTargetF,
+                totalHours = pf.projection.totalHours,
+                phases = pf.projection.phases,
+                warnings = pf.warnings,
+                restMin = CP_MEATS[meatKey]?.restMin ?: 0,
+                preheatMin = CookManager.PREHEAT_MINUTES.toInt(),
+            )
         } catch (e: Exception) {
             PreviewUi(error = e.message ?: "Couldn't plan that cook")
         }
