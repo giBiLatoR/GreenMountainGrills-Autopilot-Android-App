@@ -154,7 +154,20 @@ class GrillRepository(
         pollOnce()
     }
 
-    suspend fun setGrillTemp(f: Int) = command { client?.setGrillTemp(max(150, min(maxPitF, f))) }
+    suspend fun setGrillTemp(f: Int) {
+        // The grill controller mishandles a setpoint sent during its cold-start
+        // sequence, so block heat changes until it's up to its minimum operating
+        // temp (150°F). Covers the manual path; Auto-Cook gates its own preheat.
+        val snap = _state.value.snapshot
+        if (snap == null || snap.grillTemp < CookManager.LAUNCH_READY_TEMP_F) {
+            _state.value = _state.value.copy(
+                error = "Hold on — let the grill reach 150°F before changing the heat. " +
+                    "The controller can't take a new setpoint while it's still starting up.",
+            )
+            return
+        }
+        command { client?.setGrillTemp(max(150, min(maxPitF, f))) }
+    }
     suspend fun setProbeTarget(probe: Int, f: Int) = command { client?.setProbeTarget(probe, f) }
     suspend fun powerOn() = command { client?.powerOn() }
     suspend fun powerOff() = command { client?.powerOff() }

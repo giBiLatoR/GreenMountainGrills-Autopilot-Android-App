@@ -132,6 +132,7 @@ fun HomeScreen(
 
             ManualControls(
                 on = snapshot.powerState != PowerState.OFF,
+                canSetGrill = snapshot.grillTemp >= 150,
                 grillSet = snapshot.grillSetTemp,
                 probe1Target = snapshot.probe1Target,
                 probe2Target = snapshot.probe2Target,
@@ -212,6 +213,7 @@ private fun LiveCookSection(
 @Composable
 private fun ManualControls(
     on: Boolean,
+    canSetGrill: Boolean,
     grillSet: Int,
     probe1Target: Int,
     probe2Target: Int,
@@ -229,9 +231,16 @@ private fun ManualControls(
                     color = Muted,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+            } else if (!canSetGrill) {
+                Text(
+                    "Grill heat unlocks once it reaches 150°F — it's still starting up. " +
+                        "Food targets can be set anytime.",
+                    color = Muted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-            ControlRow("Grill heat", Ember, on) {
-                Stepper(grillSet, { onSetGrillTemp(it) }, step = 5, min = 150, max = maxPit, unit = "°", enabled = on)
+            ControlRow("Grill heat", Ember, canSetGrill) {
+                Stepper(grillSet, { onSetGrillTemp(it) }, step = 5, min = 150, max = maxPit, unit = "°", enabled = canSetGrill)
             }
             ControlRow("Food target (probe 1)", ProbeBlue, on) {
                 Stepper(probe1Target, { onSetProbeTarget(1, it) }, step = 5, min = 32, max = 257, unit = "°", enabled = on)

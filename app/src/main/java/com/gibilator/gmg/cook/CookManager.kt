@@ -78,6 +78,13 @@ class CookSession(
 ) {
     internal val probeHistory: MutableList<ProbeSample> = mutableListOf()
     val notes: MutableList<String> = mutableListOf()
+
+    /**
+     * Whether our pit setpoint has been pushed to the grill yet. We hold it back
+     * until the grill clears 150°F, because the controller mishandles a setpoint
+     * sent during its cold-start/ignition sequence.
+     */
+    var pitTargetApplied: Boolean = false
 }
 
 /** Outcome of pre-flight validation. */
@@ -184,7 +191,7 @@ class CookManager(
         if (state == CookState.COMPLETE || state == CookState.ABORTED) return false
         CP_MEATS[meatKey] ?: return false
         val projection = computeAt(meatKey, weightKg * 2.20462, pitTargetF.toDouble()) ?: return false
-        session = CookSession(
+        val restored = CookSession(
             state = state,
             meatKey = meatKey,
             weightKg = weightKg,
@@ -197,6 +204,10 @@ class CookManager(
             pullReachedAt = pullReachedAt,
             lastPitSetF = pitTargetF,
         )
+        // Past preheat, the setpoint was applied long ago. Only a resumed
+        // PREHEATING session might still need to (re)apply it once it clears 150°F.
+        restored.pitTargetApplied = state != CookState.PREHEATING
+        session = restored
         emit(1, "Cook resumed", "Picked your ${CP_MEATS.getValue(meatKey).label} cook back up where it left off.")
         return true
     }
@@ -278,12 +289,19 @@ class CookManager(
             if (snapshot.powerState == PowerState.OFF) {
                 runCatching { controller.powerOn() }
             }
-            setPitTarget(target, "preheat")
+            // Don't push the setpoint during the cold-start/ignition sequence — the
+            // controller mishandles it. If the grill is already up to its minimum
+            // operating temp, set it now; otherwise update() applies it once the
+            // grill clears 150°F.
+            if (snapshot.grillTemp >= LAUNCH_READY_TEMP_F) {
+                setPitTarget(target, "preheat")
+                newSession.pitTargetApplied = true
+            }
             newSession.state = CookState.PREHEATING
             newSession.preheatStartedAt = now
             emit(
                 1, "Auto-Cook started",
-                "$label (${fweight(weightKg)}) — preheating to ${ftemp(target)}. Projected %.1fh.".format(projH),
+                "$label (${fweight(weightKg)}) — lighting the grill, then heating to ${ftemp(target)}. Projected %.1fh.".format(projH),
             )
         }
         if (pf.warnings.isNotEmpty()) {
@@ -336,6 +354,14 @@ class CookManager(
 
         when (s.state) {
             CookState.PREHEATING -> {
+                // Launch gate: push our pit target only after the grill clears its
+                // minimum operating temp, so we don't disrupt the ignition sequence.
+                if (s.mode != CookMode.COACH && !s.pitTargetApplied &&
+                    snapshot.grillTemp >= LAUNCH_READY_TEMP_F
+                ) {
+                    setPitTarget(s.pitTargetF, "preheat (launch complete)")
+                    s.pitTargetApplied = true
+                }
                 if (detectCookStart(s)) {
                     s.state = CookState.COOKING
                     s.cookStartedAt = now
@@ -510,6 +536,9 @@ class CookManager(
     companion object {
         const val PIT_CLAMP_MIN_F = 150
         const val PIT_CLAMP_MAX_F = 375
+        // Grill's minimum operating temp. Setpoint writes are held until the grill
+        // reaches this during cold start, or the controller gets confused.
+        const val LAUNCH_READY_TEMP_F = 150
         const val COOK_START_DROP_F = 30.0
         const val COOK_START_WINDOW_S = 60.0
         const val PREHEAT_BAND_F = 10
