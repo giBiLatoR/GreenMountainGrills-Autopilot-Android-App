@@ -33,6 +33,12 @@ object CookPhysics {
         val restMin: Int,
         val foil: Boolean,
         val maxHours: Double,
+        // Thin "by-the-piece" items: their size doesn't change the time (constant
+        // half-thickness), so don't ask for weight.
+        val byThePiece: Boolean = false,
+        // Cook at a fixed pit temp instead of solving one from a finish time —
+        // sensible for quick items where a hot finish-time solution is wrong.
+        val fixedPitF: Int? = null,
     )
 
     private fun lLinear(intercept: Double, slope: Double = 0.0): (Double) -> Double =
@@ -51,7 +57,7 @@ object CookPhysics {
         "turkey_breast" to Meat("turkey_breast", "Turkey Breast", 1.60, lLinear(1.0, 0.08), 160, false, 20, false, 8.0),
         "whole_chicken" to Meat("whole_chicken", "Whole Chicken", 1.55, lLinear(1.0, 0.10), 165, false, 15, false, 4.0),
         "chicken_thighs_legs" to Meat("chicken_thighs_legs", "Chicken Thighs / Legs", 1.55, lLinear(1.2), 175, false, 10, false, 4.0),
-        "chicken_breast" to Meat("chicken_breast", "Chicken Breasts", 1.55, lLinear(1.2), 162, false, 5, false, 4.0),
+        "chicken_breast" to Meat("chicken_breast", "Chicken Breasts", 1.55, lLinear(1.2), 162, false, 5, false, 4.0, byThePiece = true, fixedPitF = 275),
         "pork_loin" to Meat("pork_loin", "Pork Loin Roast", 1.60, lLinear(1.0, 0.08), 145, false, 15, false, 4.0),
         "lamb_leg" to Meat("lamb_leg", "Lamb Leg (Bone-In)", 1.60, lLinear(1.0, 0.08), 135, false, 15, false, 10.0),
         "beef_tri_tip" to Meat("beef_tri_tip", "Beef Tri-Tip Roast", 1.60, lLinear(1.2), 135, false, 10, false, 8.0),
@@ -60,7 +66,7 @@ object CookPhysics {
         "spare_ribs_stlouis" to Meat("spare_ribs_stlouis", "Spare Ribs — St. Louis Style", 1.72, lLinear(0.65), 195, false, 15, false, 10.0),
         "pork_chops" to Meat("pork_chops", "Pork Chops", 1.60, lLinear(0.8), 145, false, 5, false, 4.0),
         "salmon_fillet" to Meat("salmon_fillet", "Salmon Fillet", 1.50, lLinear(0.3, 0.06), 145, false, 5, true, 2.0),
-        "sausage_brats" to Meat("sausage_brats", "Sausage / Bratwurst", 1.55, lLinear(0.7), 160, false, 5, false, 3.0),
+        "sausage_brats" to Meat("sausage_brats", "Sausage / Bratwurst", 1.55, lLinear(0.7), 160, false, 5, false, 3.0, byThePiece = true, fixedPitF = 250),
     )
 
     /** One segment of the projection curve. */

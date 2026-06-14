@@ -69,7 +69,6 @@ fun NewCookScreen(
     onStart: (String, Double, Int, CookMode, Double) -> Unit,
     onDone: () -> Unit,
 ) {
-    var step by remember { mutableIntStateOf(0) }
     var meatKey by remember { mutableStateOf(prefs?.plannerMeat ?: "beef_brisket_packer") }
     var weightKg by remember { mutableFloatStateOf((prefs?.plannerWeightKg ?: 4.0).toFloat()) }
     var finishH by remember { mutableFloatStateOf((prefs?.plannerFinishH ?: 12.0).toFloat()) }
@@ -78,32 +77,49 @@ fun NewCookScreen(
     val unit = prefs.tempUnit()
     val wUnit = prefs.weightUnit()
 
-    LaunchedEffect(step) {
-        if (step == 4) onPreview(meatKey, weightKg.toDouble(), finishH.toDouble())
+    // The steps depend on the meat: by-the-piece items skip weight; fixed-temp
+    // items skip the finish-time question (their time is set by the temp).
+    val meat = CP_MEATS[meatKey]
+    val steps = remember(meatKey) {
+        buildList {
+            add(WizStep.MEAT)
+            if (meat?.byThePiece != true) add(WizStep.WEIGHT)
+            if (meat?.fixedPitF == null) add(WizStep.FINISH)
+            add(WizStep.MODE)
+            add(WizStep.PLAN)
+        }
+    }
+    var stepIdx by remember { mutableIntStateOf(0) }
+    val idx = stepIdx.coerceIn(0, steps.lastIndex)
+    val current = steps[idx]
+
+    LaunchedEffect(current, meatKey, weightKg, finishH) {
+        if (current == WizStep.PLAN) onPreview(meatKey, weightKg.toDouble(), finishH.toDouble())
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        StepDots(step, 5)
+        StepDots(idx, steps.size)
         Spacer(Modifier.height(12.dp))
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (step) {
-                0 -> MeatStep(meatKey) { meatKey = it }
-                1 -> WeightStep(weightKg, wUnit) { weightKg = it }
-                2 -> FinishStep(finishH) { finishH = it }
-                3 -> ModeStep(mode) { mode = it }
-                else -> PlanStep(preview, unit)
+            when (current) {
+                WizStep.MEAT -> MeatStep(meatKey) { meatKey = it }
+                WizStep.WEIGHT -> WeightStep(weightKg, wUnit) { weightKg = it }
+                WizStep.FINISH -> FinishStep(finishH) { finishH = it }
+                WizStep.MODE -> ModeStep(mode) { mode = it }
+                WizStep.PLAN -> PlanStep(preview, unit)
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (step > 0) {
-                TextButton(onClick = { if (step == 4) onClearPreview(); step-- }, modifier = Modifier.weight(1f)) {
-                    Text("Back")
-                }
+            if (idx > 0) {
+                TextButton(
+                    onClick = { if (current == WizStep.PLAN) onClearPreview(); stepIdx = idx - 1 },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Back") }
             }
             Button(
                 onClick = {
-                    if (step < 4) {
-                        step++
+                    if (current != WizStep.PLAN) {
+                        stepIdx = idx + 1
                     } else {
                         onStart(meatKey, weightKg.toDouble(), probe, mode, finishH.toDouble())
                         onClearPreview()
@@ -111,14 +127,16 @@ fun NewCookScreen(
                     }
                 },
                 modifier = Modifier.weight(2f),
-                enabled = step < 4 || (preview != null && preview.error == null),
+                enabled = current != WizStep.PLAN || (preview != null && preview.error == null),
                 colors = ButtonDefaults.buttonColors(containerColor = Ember),
             ) {
-                Text(if (step < 4) "Next" else "🔥  Start cooking", fontWeight = FontWeight.Bold)
+                Text(if (current != WizStep.PLAN) "Next" else "🔥  Start cooking", fontWeight = FontWeight.Bold)
             }
         }
     }
 }
+
+private enum class WizStep { MEAT, WEIGHT, FINISH, MODE, PLAN }
 
 @Composable
 private fun StepDots(step: Int, total: Int) {

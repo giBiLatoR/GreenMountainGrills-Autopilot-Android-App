@@ -220,14 +220,23 @@ class CookManager(
     fun preFlight(meatKey: String, weightKg: Double, finishInHours: Double): PreFlightResult {
         val meat = CP_MEATS[meatKey] ?: throw CookManagerError("unknown meat key: $meatKey")
         if (weightKg <= 0) throw CookManagerError("weight must be > 0 kg")
-        if (finishInHours <= 0.5) throw CookManagerError("finish time too soon (>0.5h required)")
         val weightLbs = weightKg * 2.20462
-        // Total window = startup (light-up to temp) + cook + rest. Reserve the
-        // startup and rest out of the user's finish target so the cook lands on time.
-        val cookHrs = finishInHours - (meat.restMin / 60.0) - (PREHEAT_MINUTES / 60.0)
-        if (cookHrs <= 0.25) throw CookManagerError("not enough cook time after startup + rest budget")
-        var pitTarget = findExactTemp(meatKey, weightLbs, cookHrs)
-        pitTarget = max(PIT_CLAMP_MIN_F.toDouble(), min(maxPitF.toDouble(), pitTarget.roundToInt().toDouble()))
+
+        val pitTarget: Double = if (meat.fixedPitF != null) {
+            // By-the-piece items (sausage, chicken breast) cook at a fixed, sensible
+            // temp — their time doesn't depend on weight or a finish-time solve, and
+            // a finish-time solution can pick a pit that's far too hot.
+            max(PIT_CLAMP_MIN_F, min(maxPitF, meat.fixedPitF)).toDouble()
+        } else {
+            if (finishInHours <= 0.5) throw CookManagerError("finish time too soon (>0.5h required)")
+            // Total window = startup + cook + rest. Reserve startup + rest out of the
+            // user's finish target so the cook lands on time.
+            val cookHrs = finishInHours - (meat.restMin / 60.0) - (PREHEAT_MINUTES / 60.0)
+            if (cookHrs <= 0.25) throw CookManagerError("not enough cook time after startup + rest budget")
+            val solved = findExactTemp(meatKey, weightLbs, cookHrs)
+            max(PIT_CLAMP_MIN_F.toDouble(), min(maxPitF.toDouble(), solved.roundToInt().toDouble()))
+        }
+
         val projection = computeAt(meatKey, weightLbs, pitTarget)
             ?: throw CookManagerError("physics model failed to converge")
 
@@ -235,12 +244,6 @@ class CookManager(
         if (projection.totalHours > meat.maxHours) {
             warnings.add(
                 "projected %.1fh exceeds %s max %.1fh".format(projection.totalHours, meat.label, meat.maxHours),
-            )
-        }
-        val slow = computeAt(meatKey, weightLbs, PIT_CLAMP_MIN_F.toDouble())
-        if (slow != null && slow.totalHours < projection.totalHours) {
-            warnings.add(
-                "computed pit target slower than the ${ftemp(PIT_CLAMP_MIN_F)} floor — review inputs",
             )
         }
         return PreFlightResult(true, pitTarget.toInt(), projection, warnings)
