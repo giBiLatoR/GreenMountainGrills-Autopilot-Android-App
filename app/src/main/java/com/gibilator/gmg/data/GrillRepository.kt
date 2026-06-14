@@ -6,6 +6,7 @@ import com.gibilator.gmg.cook.CookManager
 import com.gibilator.gmg.cook.CookMode
 import com.gibilator.gmg.cook.CookNotifier
 import com.gibilator.gmg.cook.CookPhysics.CP_MEATS
+import com.gibilator.gmg.cook.CookPhysics.elapsedAtProbe
 import com.gibilator.gmg.cook.CookPhysics.expectedProbeAt
 import com.gibilator.gmg.cook.CookPhysics.phaseAt
 import com.gibilator.gmg.cook.CookState
@@ -226,7 +227,14 @@ class GrillRepository(
         val started = s.cookStartedAt
         val elapsedMin = started?.let { (now - it) / 60.0 }
         val totalMin = s.projection.totalHours * 60
-        val remainingMin = started?.let { max(0.0, totalMin - (now - it) / 60.0) }
+        // Live forecast: anchor remaining to where the food actually is on the
+        // curve, not a static (plan total − elapsed) countdown. Falls back to the
+        // countdown only when there's no probe reading.
+        val remainingMin: Double? = when {
+            started == null -> null
+            probeF != null -> max(0.0, (s.projection.totalHours - elapsedAtProbe(s.projection, probeF.toDouble())) * 60)
+            else -> max(0.0, totalMin - (now - started) / 60.0)
+        }
         val expected = started?.let { expectedProbeAt(s.projection, (now - it) / 3600.0) }
         val phaseKey = if (probeF != null && pullF != null) phaseAt(s.projection, probeF.toDouble(), pullF) else null
         val delta = if (expected != null && probeF != null) expected - probeF else null

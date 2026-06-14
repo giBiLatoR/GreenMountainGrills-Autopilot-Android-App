@@ -195,6 +195,29 @@ object CookPhysics {
     }
 
     /**
+     * Inverse of [expectedProbeAt]: the elapsed hours at which the projection
+     * expects the probe to read [probeF]. Lets "time remaining" re-forecast from
+     * the food's *actual* position on the curve instead of a static plan
+     * countdown — a cook that's behind shows more time left, ahead shows less,
+     * and the stall naturally holds the estimate while the probe is flat.
+     */
+    fun elapsedAtProbe(projection: CookProjection, probeF: Double): Double {
+        val first = projection.phases.first()
+        if (probeF <= first.startInternalF) return 0.0
+        var cum = 0.0
+        for (ph in projection.phases) {
+            if (probeF <= ph.endInternalF) {
+                if (ph.hours <= 0) return cum
+                val frac = ((probeF - ph.startInternalF) / (ph.endInternalF - ph.startInternalF))
+                    .coerceIn(0.0, 1.0)
+                return cum + frac * ph.hours
+            }
+            cum += ph.hours
+        }
+        return projection.totalHours
+    }
+
+    /**
      * Classify the current cook phase from probe temp. Returns one of:
      * `pre_stall`, `stall`, `post_stall`, `single_phase`, `approaching`, `pull_reached`.
      */

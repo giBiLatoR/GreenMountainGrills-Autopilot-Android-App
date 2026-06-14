@@ -3,11 +3,13 @@ package com.gibilator.gmg
 import com.gibilator.gmg.cook.CookPhysics
 import com.gibilator.gmg.cook.CookPhysics.CP_MEATS
 import com.gibilator.gmg.cook.CookPhysics.computeAt
+import com.gibilator.gmg.cook.CookPhysics.elapsedAtProbe
 import com.gibilator.gmg.cook.CookPhysics.expectedProbeAt
 import com.gibilator.gmg.cook.CookPhysics.findExactTemp
 import com.gibilator.gmg.cook.CookPhysics.phaseAt
 import com.gibilator.gmg.cook.CookPhysics.phaseHours
 import com.gibilator.gmg.cook.CookPhysics.wetBulbF
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -105,6 +107,18 @@ class CookPhysicsTest {
         assertEquals("post_stall", phaseAt(res, 180.0, pull))
         assertEquals("approaching", phaseAt(res, (pull - 5).toDouble(), pull))
         assertEquals("pull_reached", phaseAt(res, pull.toDouble(), pull))
+    }
+
+    @Test
+    fun elapsedAtProbeInvertsExpected() {
+        val res = computeAt("whole_chicken", 2.0, 350.0) // single phase, strictly increasing
+        assertNotNull(res)
+        // Start temp maps to t=0; pull temp maps to the full projected time.
+        assertEquals(0.0, elapsedAtProbe(res, res.phases.first().startInternalF), 1e-9)
+        assertTrue(abs(elapsedAtProbe(res, res.phases.last().endInternalF) - res.totalHours) < 1e-6)
+        // Round-trips with expectedProbeAt mid-cook.
+        val h = res.totalHours * 0.5
+        assertTrue(abs(elapsedAtProbe(res, expectedProbeAt(res, h)) - h) < 1e-3, "round-trip off")
     }
 
     @Test
