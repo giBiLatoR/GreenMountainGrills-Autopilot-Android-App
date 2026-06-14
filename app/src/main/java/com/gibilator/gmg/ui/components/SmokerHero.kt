@@ -8,11 +8,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Power
 import androidx.compose.material.icons.rounded.Warning
@@ -36,9 +38,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gibilator.gmg.R
 import com.gibilator.gmg.protocol.GmgSnapshot
+import com.gibilator.gmg.protocol.PowerState
 import com.gibilator.gmg.protocol.WarnCode
 import com.gibilator.gmg.ui.theme.Amber
 import com.gibilator.gmg.ui.theme.Ember
+import com.gibilator.gmg.ui.theme.GoodGreen
 import com.gibilator.gmg.ui.theme.Muted
 import com.gibilator.gmg.ui.theme.ProbeBlue
 import com.gibilator.gmg.ui.theme.WarnRed
@@ -127,29 +131,18 @@ fun SmokerHero(
             )
         }
 
-        // Grill + food readouts (two-line).
-        AtFraction(0.36f, 0.66f) {
-            AnimatedTempReadout(snapshot.grillTemp, "Grill", Ember, tempUnit, valueSize = 18)
+        // Grill + food readouts (two-line). Greyed out until the grill is on.
+        val on = snapshot.powerState != PowerState.OFF
+        AtFraction(0.34f, 0.62f) {
+            AnimatedTempReadout(snapshot.grillTemp, "Grill", Ember, tempUnit, valueSize = 18, enabled = on)
         }
-        val foodProbe = snapshot.probe1Temp
-        AtFraction(0.68f, 0.66f) {
-            AnimatedTempReadout(foodProbe, "Food", ProbeBlue, tempUnit, valueSize = 18)
+        AtFraction(0.70f, 0.62f) {
+            AnimatedTempReadout(snapshot.probe1Temp, "Food", ProbeBlue, tempUnit, valueSize = 18, enabled = on)
         }
 
-        // Power button.
-        AtFraction(0.12f, 0.62f) {
-            Surface(
-                shape = CircleShape,
-                color = if (snapshot.powerState.raw != 0) Ember else Color(0xFF555048),
-                onClick = onPowerTap,
-            ) {
-                Icon(
-                    Icons.Rounded.Power,
-                    contentDescription = if (snapshot.powerState.raw != 0) "Shut down" else "Light the grill",
-                    tint = Color.White,
-                    modifier = Modifier.padding(10.dp),
-                )
-            }
+        // Big START / STOP button.
+        AtFraction(0.50f, 0.86f) {
+            StartStopButton(on = on, onClick = onPowerTap)
         }
 
         // Hopper pellets.
@@ -170,6 +163,24 @@ fun SmokerHero(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StartStopButton(on: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (on) WarnRed else GoodGreen,
+        shadowElevation = 6.dp,
+        onClick = onClick,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
+        ) {
+            Icon(Icons.Rounded.Power, contentDescription = null, tint = Color.White, modifier = Modifier.padding(end = 8.dp))
+            Text(if (on) "STOP" else "START", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
         }
     }
 }

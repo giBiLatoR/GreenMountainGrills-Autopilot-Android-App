@@ -1,6 +1,7 @@
 package com.gibilator.gmg.vm
 
 import android.app.Application
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gibilator.gmg.GmgApp
@@ -8,7 +9,9 @@ import com.gibilator.gmg.cook.CookMode
 import com.gibilator.gmg.cook.CookPhysics.Phase
 import com.gibilator.gmg.data.GmgPrefs
 import com.gibilator.gmg.data.GrillUiState
+import com.gibilator.gmg.data.LoggedSample
 import com.gibilator.gmg.data.StoredGrill
+import com.gibilator.gmg.data.StoredSession
 import com.gibilator.gmg.protocol.DiscoveredGrill
 import com.gibilator.gmg.service.PollService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +51,12 @@ class GrillViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _discovery = MutableStateFlow(DiscoveryUi())
     val discovery: StateFlow<DiscoveryUi> = _discovery.asStateFlow()
+
+    private val _history = MutableStateFlow<List<StoredSession>>(emptyList())
+    val history: StateFlow<List<StoredSession>> = _history.asStateFlow()
+
+    private val _sessionLog = MutableStateFlow<List<LoggedSample>>(emptyList())
+    val sessionLog: StateFlow<List<LoggedSample>> = _sessionLog.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -119,8 +128,23 @@ class GrillViewModel(app: Application) : AndroidViewModel(app) {
     fun setMaxPit(f: Int) = viewModelScope.launch { repo.prefs.setMaxPitF(f) }
     fun setAutoCook(b: Boolean) = viewModelScope.launch { repo.prefs.setAutoCook(b) }
     fun setPush(b: Boolean) = viewModelScope.launch { repo.prefs.setPush(b) }
+    fun setNotifyLevel(level: String) = viewModelScope.launch { repo.prefs.setNotifyLevel(level) }
     fun setDevMode(b: Boolean) = viewModelScope.launch { repo.prefs.setDevMode(b) }
     fun setTempUnit(pref: String) = viewModelScope.launch { repo.prefs.setTempUnit(pref) }
     fun setWeightUnit(pref: String) = viewModelScope.launch { repo.prefs.setWeightUnit(pref) }
     fun completeOnboarding() = viewModelScope.launch { repo.prefs.setOnboardingDone(true) }
+
+    // --- history -----------------------------------------------------------
+
+    fun loadHistory() = viewModelScope.launch { _history.value = repo.listSessions() }
+    fun openSession(id: Long) = viewModelScope.launch { _sessionLog.value = repo.sessionLog(id) }
+    fun closeSession() { _sessionLog.value = emptyList() }
+
+    // --- monitoring lifecycle ---------------------------------------------
+
+    /** Quit: stop the foreground poll service and clear all notifications. */
+    fun stopMonitoring() {
+        PollService.stop(getApplication())
+        runCatching { NotificationManagerCompat.from(getApplication<Application>()).cancelAll() }
+    }
 }

@@ -25,6 +25,23 @@ enum class CookState(val value: String) {
     PULL_REACHED("pull_reached"),
     COMPLETE("complete"),
     ABORTED("aborted"),
+    ;
+
+    companion object {
+        fun from(value: String): CookState = entries.firstOrNull { it.value == value } ?: IDLE
+    }
+}
+
+/** How chatty milestone notifications should be (battery / noise control). */
+enum class NotifyLevel(val key: String, val threshold: Int) {
+    ALL("all", 0),
+    MILESTONES("milestones", 1),
+    CRITICAL("critical", 2),
+    ;
+
+    companion object {
+        fun from(key: String): NotifyLevel = entries.firstOrNull { it.key == key } ?: MILESTONES
+    }
 }
 
 /** User-selectable behavior modes. Port of `CookMode`. */
@@ -89,6 +106,13 @@ interface CookStore {
     suspend fun insertSession(session: CookSession, serial: String): Long
     suspend fun completeSession(session: CookSession, finalState: String, serial: String)
     suspend fun logSample(session: CookSession, snapshot: GmgSnapshot, probeF: Double?, serial: String)
+    suspend fun updateActiveSession(
+        serial: String,
+        state: String,
+        cookStartedAt: Double?,
+        pitTargetF: Int,
+        pullReachedAt: Double?,
+    )
 }
 
 /**
@@ -113,6 +137,7 @@ class CookManager(
     private var maxPitF = PIT_CLAMP_MAX_F
     private var tempUnit = Units.TEMP_F
     private var weightUnit = Units.WEIGHT_KG
+    private var notifyThreshold = NotifyLevel.MILESTONES.threshold
 
     fun setSerial(value: String) { serial = value }
 
@@ -123,6 +148,7 @@ class CookManager(
         maxPitF: Int = PIT_CLAMP_MAX_F,
         tempUnit: String = Units.TEMP_F,
         weightUnit: String = Units.WEIGHT_KG,
+        notifyLevel: String = NotifyLevel.MILESTONES.key,
     ) {
         this.autoCookEnabled = autoCook
         this.devMode = devMode
@@ -130,6 +156,49 @@ class CookManager(
         this.maxPitF = max(PIT_CLAMP_MIN_F, min(PIT_CLAMP_MAX_F, maxPitF))
         this.tempUnit = tempUnit
         this.weightUnit = weightUnit
+        this.notifyThreshold = NotifyLevel.from(notifyLevel).threshold
+    }
+
+    /** Emit a milestone only if it meets the user's notification verbosity. */
+    private fun emit(rank: Int, title: String, message: String, critical: Boolean = false) {
+        if (rank >= notifyThreshold) notifier.notify(title, message, critical)
+    }
+
+    /**
+     * Rebuild an in-flight session from persisted fields so a cook resumes after
+     * the app/service is killed (e.g. user left WiFi range and came back). The
+     * projection is recomputed from the stored inputs — identical to the original.
+     */
+    fun restoreActiveSession(
+        meatKey: String,
+        weightKg: Double,
+        probeIndex: Int,
+        mode: CookMode,
+        pitTargetF: Int,
+        state: CookState,
+        createdAt: Double,
+        cookStartedAt: Double?,
+        pullReachedAt: Double?,
+    ): Boolean {
+        if (session != null) return false
+        if (state == CookState.COMPLETE || state == CookState.ABORTED) return false
+        CP_MEATS[meatKey] ?: return false
+        val projection = computeAt(meatKey, weightKg * 2.20462, pitTargetF.toDouble()) ?: return false
+        session = CookSession(
+            state = state,
+            meatKey = meatKey,
+            weightKg = weightKg,
+            probeIndex = probeIndex,
+            mode = mode,
+            pitTargetF = pitTargetF,
+            projection = projection,
+            createdAt = createdAt,
+            cookStartedAt = cookStartedAt,
+            pullReachedAt = pullReachedAt,
+            lastPitSetF = pitTargetF,
+        )
+        emit(1, "Cook resumed", "Picked your ${CP_MEATS.getValue(meatKey).label} cook back up where it left off.")
+        return true
     }
 
     private fun ftemp(v: Number?): String = Units.fmtTemp(v?.toDouble(), tempUnit)
@@ -200,8 +269,8 @@ class CookManager(
         if (mode == CookMode.COACH) {
             newSession.state = CookState.PREHEATING
             newSession.preheatStartedAt = now
-            notifier.notify(
-                "Auto-Cook (coach) started",
+            emit(
+                1, "Auto-Cook (coach) started",
                 "$label (${fweight(weightKg)}) — power on the grill and set the pit to " +
                     "${ftemp(target)}. Projected %.1fh. I'll track progress and advise, but I won't change the grill.".format(projH),
             )
@@ -212,14 +281,15 @@ class CookManager(
             setPitTarget(target, "preheat")
             newSession.state = CookState.PREHEATING
             newSession.preheatStartedAt = now
-            notifier.notify(
-                "Auto-Cook started",
+            emit(
+                1, "Auto-Cook started",
                 "$label (${fweight(weightKg)}) — preheating to ${ftemp(target)}. Projected %.1fh.".format(projH),
             )
         }
         if (pf.warnings.isNotEmpty()) {
-            notifier.notify("Auto-Cook pre-flight warnings", pf.warnings.joinToString("; "))
+            emit(0, "Auto-Cook pre-flight warnings", pf.warnings.joinToString("; "))
         }
+        store.updateActiveSession(serial, newSession.state.value, newSession.cookStartedAt, newSession.pitTargetF, newSession.pullReachedAt)
         return newSession
     }
 
@@ -227,7 +297,7 @@ class CookManager(
         val s = session ?: return
         s.state = CookState.ABORTED
         store.completeSession(s, "aborted", serial)
-        notifier.notify("Auto-Cook aborted", "Session cancelled.")
+        emit(0, "Auto-Cook aborted", "Session cancelled.")
         session = null
     }
 
@@ -248,15 +318,17 @@ class CookManager(
             }
         }
 
-        if (devMode) store.logSample(s, snapshot, probeF, serial)
+        // History + resume: log a sample and keep the active row fresh each poll.
+        store.logSample(s, snapshot, probeF, serial)
+        store.updateActiveSession(serial, s.state.value, s.cookStartedAt, s.pitTargetF, s.pullReachedAt)
 
         // Grill failure trip — pit dropped from hot to below the safe floor.
         if (s.state in setOf(CookState.PREHEATING, CookState.WAITING_MEAT, CookState.COOKING, CookState.APPROACHING) &&
             snapshot.grillTemp < PIT_CLAMP_MIN_F &&
             wasAbove(s, PIT_ERROR_TRIP_F)
         ) {
-            notifier.notify(
-                "Auto-Cook: grill failure suspected",
+            emit(
+                2, "Auto-Cook: grill failure suspected",
                 "Pit dropped to ${ftemp(snapshot.grillTemp)}. Check grill.",
                 critical = true,
             )
@@ -267,7 +339,7 @@ class CookManager(
                 if (detectCookStart(s)) {
                     s.state = CookState.COOKING
                     s.cookStartedAt = now
-                    notifier.notify("Cook started", "Meat detected during preheat — tracking now.")
+                    emit(1, "Cook started", "Meat detected during preheat — tracking now.")
                     return
                 }
                 if (abs(snapshot.grillTemp - s.pitTargetF) <= PREHEAT_BAND_F) {
@@ -275,7 +347,7 @@ class CookManager(
                         s.preheatReadySince = now
                     } else if (now - s.preheatReadySince!! >= PREHEAT_HOLD_S) {
                         s.state = CookState.WAITING_MEAT
-                        notifier.notify("Grill ready", "At ${ftemp(snapshot.grillTemp)} — insert probe into meat.")
+                        emit(1, "Grill ready", "At ${ftemp(snapshot.grillTemp)} — put your food on.")
                     }
                 } else {
                     s.preheatReadySince = null
@@ -286,7 +358,7 @@ class CookManager(
                 if (detectCookStart(s)) {
                     s.state = CookState.COOKING
                     s.cookStartedAt = now
-                    notifier.notify("Cook started", "Probe drop detected. Tracking projection.")
+                    emit(1, "Cook started", "Probe drop detected. Tracking projection.")
                 }
             }
 
@@ -296,18 +368,18 @@ class CookManager(
                     if (probeF >= pullF) {
                         s.state = CookState.PULL_REACHED
                         s.pullReachedAt = now
-                        notifier.notify(
-                            "Pull temp reached",
-                            "Probe at ${ftemp(probeF)} (target ${ftemp(pullF)}).",
+                        emit(
+                            2, "It's ready! 🎉",
+                            "Your ${CP_MEATS.getValue(s.meatKey).label} hit ${ftemp(probeF)} (target ${ftemp(pullF)}). Pull it off!",
                             critical = true,
                         )
                         return
                     }
                     if (probeF >= pullF - APPROACHING_BAND_F && s.state == CookState.COOKING) {
                         s.state = CookState.APPROACHING
-                        notifier.notify(
-                            "Approaching pull",
-                            "Approaching the ${ftemp(pullF)} pull target. No further pit adjustments.",
+                        emit(
+                            1, "Almost done",
+                            "Within reach of the ${ftemp(pullF)} target. Get your plates ready.",
                         )
                     }
                 }
@@ -324,12 +396,12 @@ class CookManager(
                 val elapsedSincePull = now - (s.pullReachedAt ?: now)
                 if (elapsedSincePull <= 1800 && now - s.lastPullNotifyAt >= 300) {
                     s.lastPullNotifyAt = now
-                    notifier.notify("Pull temp reached", "Probe ${ftemp(probeF)} — pull the meat.")
+                    emit(1, "Still ready to pull", "Food's at ${ftemp(probeF)} — pull it when you can.")
                 }
                 if (snapshot.powerState == PowerState.OFF || probeF == null || probeF <= PROBE_UNPLUGGED_SENTINEL_F) {
                     s.state = CookState.COMPLETE
                     store.completeSession(s, "complete", serial)
-                    notifier.notify("Cook complete", "Session closed.")
+                    emit(1, "Cook complete", "All done. Enjoy! 🍖")
                     session = null
                 }
             }
@@ -399,15 +471,15 @@ class CookManager(
         if (now - s.lastAdjAt < COACH_ADVISE_INTERVAL_S) return
         s.lastAdjAt = now
         if (delta > 0) {
-            notifier.notify(
-                "Coach: running behind",
-                "Probe ${ftemp(probeF)} vs expected ${ftemp(expected)}. Consider raising the pit setpoint.",
+            emit(
+                0, "Coach: running behind",
+                "Food ${ftemp(probeF)} vs expected ${ftemp(expected)}. Consider raising the grill heat.",
             )
         } else {
-            notifier.notify(
-                "Coach: ahead of schedule",
-                "Probe ${ftemp(probeF)} vs expected ${ftemp(expected)}. " +
-                    "Consider lowering the pit toward ${ftemp(s.pitTargetF)}.",
+            emit(
+                0, "Coach: ahead of schedule",
+                "Food ${ftemp(probeF)} vs expected ${ftemp(expected)}. " +
+                    "Consider lowering the grill toward ${ftemp(s.pitTargetF)}.",
             )
         }
     }
@@ -416,14 +488,14 @@ class CookManager(
     fun markMeatOn() {
         val s = session
         if (s == null) {
-            notifier.notify("Meat-on ignored", "No active cook session to apply 'meat is on' to.")
+            emit(0, "Meat-on ignored", "No active cook session to apply 'meat is on' to.")
             return
         }
         if (s.state !in setOf(CookState.PLANNED, CookState.PREHEATING, CookState.WAITING_MEAT)) return
         s.state = CookState.COOKING
         s.cookStartedAt = clock()
         s.preheatReadySince = null
-        notifier.notify("Cook started", "Meat-on override — tracking the cook now.")
+        emit(1, "Cook started", "Meat-on override — tracking the cook now.")
     }
 
     private suspend fun setPitTarget(pitF: Int, reason: String) {

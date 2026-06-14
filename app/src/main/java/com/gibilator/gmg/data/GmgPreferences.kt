@@ -23,6 +23,7 @@ data class GmgPrefs(
     val autoCookEnabled: Boolean,
     val devMode: Boolean,
     val push: Boolean,
+    val notifyLevel: String,
     val tempUnitPref: String,
     val weightUnitPref: String,
     val onboardingDone: Boolean,
@@ -41,9 +42,10 @@ class GmgPreferences(private val context: Context) {
             selectedSerial = p[SELECTED_SERIAL],
             scanIntervalS = p[SCAN_INTERVAL] ?: 15,
             maxPitF = p[MAX_PIT_F] ?: 375,
-            autoCookEnabled = p[AUTO_COOK] ?: false,
+            autoCookEnabled = p[AUTO_COOK] ?: true,
             devMode = p[DEV_MODE] ?: false,
             push = p[PUSH] ?: true,
+            notifyLevel = p[NOTIFY_LEVEL] ?: "milestones",
             tempUnitPref = p[TEMP_UNIT] ?: Units.TEMP_UNIT_AUTO,
             weightUnitPref = p[WEIGHT_UNIT] ?: Units.WEIGHT_UNIT_AUTO,
             onboardingDone = p[ONBOARDING_DONE] ?: false,
@@ -64,6 +66,7 @@ class GmgPreferences(private val context: Context) {
     suspend fun setAutoCook(enabled: Boolean) = edit { it[AUTO_COOK] = enabled }
     suspend fun setDevMode(enabled: Boolean) = edit { it[DEV_MODE] = enabled }
     suspend fun setPush(enabled: Boolean) = edit { it[PUSH] = enabled }
+    suspend fun setNotifyLevel(level: String) = edit { it[NOTIFY_LEVEL] = level }
     suspend fun setTempUnit(pref: String) = edit { it[TEMP_UNIT] = pref }
     suspend fun setWeightUnit(pref: String) = edit { it[WEIGHT_UNIT] = pref }
     suspend fun setOnboardingDone(done: Boolean) = edit { it[ONBOARDING_DONE] = done }
@@ -93,6 +96,7 @@ class GmgPreferences(private val context: Context) {
         val AUTO_COOK = booleanPreferencesKey("auto_cook")
         val DEV_MODE = booleanPreferencesKey("dev_mode")
         val PUSH = booleanPreferencesKey("push")
+        val NOTIFY_LEVEL = stringPreferencesKey("notify_level")
         val TEMP_UNIT = stringPreferencesKey("temp_unit")
         val WEIGHT_UNIT = stringPreferencesKey("weight_unit")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")

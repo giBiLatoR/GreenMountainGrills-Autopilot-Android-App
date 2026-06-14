@@ -65,6 +65,7 @@ class GrillRepository(
             maxPitF = p.maxPitF,
             tempUnit = Units.resolveTempUnit(p.tempUnitPref, metric),
             weightUnit = Units.resolveWeightUnit(p.weightUnitPref, metric),
+            notifyLevel = p.notifyLevel,
         )
     }
 
@@ -88,6 +89,21 @@ class GrillRepository(
                     label = grillInfo.model + " (" + grillInfo.serial + ")",
                 ),
             )
+            // Resume an in-flight cook if one was persisted (app/service was killed
+            // or the phone left WiFi range and came back).
+            store.loadActiveSession(grillInfo.serial)?.let { active ->
+                cookManager.restoreActiveSession(
+                    meatKey = active.meatKey,
+                    weightKg = active.weightKg,
+                    probeIndex = active.probeIndex,
+                    mode = CookMode.from(active.mode),
+                    pitTargetF = active.pitTargetF,
+                    state = CookState.from(active.state),
+                    createdAt = active.createdAt,
+                    cookStartedAt = active.cookStartedAt,
+                    pullReachedAt = active.pullReachedAt,
+                )
+            }
             samples.clear()
             _state.value = GrillUiState(
                 conn = ConnState.Connected,
@@ -166,6 +182,11 @@ class GrillRepository(
     }
 
     suspend fun knownGrills() = store.listGrills()
+
+    suspend fun listSessions(): List<StoredSession> =
+        info?.serial?.let { store.listSessions(it) } ?: emptyList()
+
+    suspend fun sessionLog(id: Long): List<LoggedSample> = store.loadLog(id)
 
     // --- helpers -----------------------------------------------------------
 

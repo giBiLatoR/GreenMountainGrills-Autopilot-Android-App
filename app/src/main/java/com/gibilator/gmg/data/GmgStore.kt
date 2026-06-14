@@ -22,6 +22,30 @@ data class StoredGrill(
     val label: String,
 )
 
+/** A persisted cook session row (used for resume + history). */
+data class StoredSession(
+    val id: Long,
+    val meatKey: String,
+    val weightKg: Double,
+    val probeIndex: Int,
+    val mode: String,
+    val pitTargetF: Int,
+    val state: String,
+    val createdAt: Double,
+    val cookStartedAt: Double?,
+    val pullReachedAt: Double?,
+    val completedAt: Double?,
+)
+
+/** One logged sample for the history graph. */
+data class LoggedSample(
+    val ts: Double,
+    val pitF: Int?,
+    val pitSetF: Int?,
+    val probeF: Int?,
+    val state: String?,
+)
+
 /**
  * Raw-SQLite persistence — a direct analog of `cook_manager._init_db_sync`
  * (the HA integration uses raw sqlite3, so this is the faithful port). Also
@@ -187,6 +211,83 @@ class GmgStore(context: Context) :
         writableDatabase.delete("grills", "serial=?", arrayOf(serial))
         Unit
     }
+
+    // --- cook sessions: resume + history -----------------------------------
+
+    /** Latest session that hasn't completed/aborted — used to resume a cook. */
+    suspend fun loadActiveSession(serial: String): StoredSession? = withContext(Dispatchers.IO) {
+        readableDatabase.rawQuery(
+            "SELECT id, meat_key, weight_kg, probe_index, mode, pit_target_f, state, " +
+                "created_at, cook_started_at, pull_reached_at, completed_at " +
+                "FROM cook_sessions WHERE serial=? AND state NOT IN ('complete','aborted') " +
+                "ORDER BY id DESC LIMIT 1",
+            arrayOf(serial),
+        ).use { c -> if (c.moveToFirst()) c.toStoredSession() else null }
+    }
+
+    /** Keep the active session row fresh so a resume picks up where we left off. */
+    override suspend fun updateActiveSession(
+        serial: String,
+        state: String,
+        cookStartedAt: Double?,
+        pitTargetF: Int,
+        pullReachedAt: Double?,
+    ) = withContext(Dispatchers.IO) {
+        writableDatabase.execSQL(
+            "UPDATE cook_sessions SET state=?, cook_started_at=?, pit_target_f=?, pull_reached_at=? " +
+                "WHERE id=(SELECT MAX(id) FROM cook_sessions WHERE serial=?)",
+            arrayOf(state, cookStartedAt, pitTargetF, pullReachedAt, serial),
+        )
+    }
+
+    /** Past cooks, newest first. */
+    suspend fun listSessions(serial: String, limit: Int = 50): List<StoredSession> =
+        withContext(Dispatchers.IO) {
+            val out = mutableListOf<StoredSession>()
+            readableDatabase.rawQuery(
+                "SELECT id, meat_key, weight_kg, probe_index, mode, pit_target_f, state, " +
+                    "created_at, cook_started_at, pull_reached_at, completed_at " +
+                    "FROM cook_sessions WHERE serial=? ORDER BY id DESC LIMIT ?",
+                arrayOf(serial, limit.toString()),
+            ).use { c -> while (c.moveToNext()) out.add(c.toStoredSession()) }
+            out
+        }
+
+    /** Logged samples for one session, oldest first. */
+    suspend fun loadLog(sessionId: Long): List<LoggedSample> = withContext(Dispatchers.IO) {
+        val out = mutableListOf<LoggedSample>()
+        readableDatabase.rawQuery(
+            "SELECT ts, pit_f, pit_set_f, probe_f, state FROM cook_log WHERE session_id=? ORDER BY ts ASC",
+            arrayOf(sessionId.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                out.add(
+                    LoggedSample(
+                        ts = c.getDouble(0),
+                        pitF = if (c.isNull(1)) null else c.getInt(1),
+                        pitSetF = if (c.isNull(2)) null else c.getInt(2),
+                        probeF = if (c.isNull(3)) null else c.getInt(3),
+                        state = if (c.isNull(4)) null else c.getString(4),
+                    ),
+                )
+            }
+        }
+        out
+    }
+
+    private fun android.database.Cursor.toStoredSession() = StoredSession(
+        id = getLong(0),
+        meatKey = getString(1),
+        weightKg = getDouble(2),
+        probeIndex = getInt(3),
+        mode = getString(4),
+        pitTargetF = getInt(5),
+        state = getString(6),
+        createdAt = getDouble(7),
+        cookStartedAt = if (isNull(8)) null else getDouble(8),
+        pullReachedAt = if (isNull(9)) null else getDouble(9),
+        completedAt = if (isNull(10)) null else getDouble(10),
+    )
 
     companion object {
         const val DB_NAME = "gmg_cooks.db"

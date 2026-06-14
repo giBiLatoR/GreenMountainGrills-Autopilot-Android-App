@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.RestaurantMenu
 import androidx.compose.material.icons.rounded.Settings
@@ -27,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.gibilator.gmg.ui.grills.GrillsScreen
+import com.gibilator.gmg.ui.history.HistoryScreen
 import com.gibilator.gmg.ui.home.HomeScreen
 import com.gibilator.gmg.ui.onboarding.OnboardingScreen
 import com.gibilator.gmg.ui.settings.SettingsScreen
@@ -37,6 +39,7 @@ private object Routes {
     const val ONBOARD = "onboarding"
     const val HOME = "home"
     const val NEWCOOK = "newcook"
+    const val HISTORY = "history"
     const val GRILLS = "grills"
     const val SETTINGS = "settings"
 }
@@ -45,7 +48,8 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab(Routes.HOME, "Cook", Icons.Rounded.Home),
-    Tab(Routes.NEWCOOK, "New Cook", Icons.Rounded.RestaurantMenu),
+    Tab(Routes.NEWCOOK, "New", Icons.Rounded.RestaurantMenu),
+    Tab(Routes.HISTORY, "History", Icons.Rounded.History),
     Tab(Routes.GRILLS, "Grills", Icons.Rounded.Wifi),
     Tab(Routes.SETTINGS, "Settings", Icons.Rounded.Settings),
 )
@@ -56,6 +60,8 @@ fun GmgNav(vm: GrillViewModel) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val preview by vm.preview.collectAsStateWithLifecycle()
     val discovery by vm.discovery.collectAsStateWithLifecycle()
+    val history by vm.history.collectAsStateWithLifecycle()
+    val sessionLog by vm.sessionLog.collectAsStateWithLifecycle()
 
     if (prefs == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -67,6 +73,17 @@ fun GmgNav(vm: GrillViewModel) {
     val currentRoute = backStack?.destination?.route
     val start = if (prefs!!.onboardingDone) Routes.HOME else Routes.ONBOARD
 
+    // Single navigation entry point for top-level tabs, so jumping to a tab from
+    // anywhere (bottom bar OR an in-screen button) behaves identically and the
+    // bottom bar stays usable.
+    val selectTab: (String) -> Unit = { route ->
+        nav.navigate(route) {
+            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     Scaffold(
         bottomBar = {
             if (currentRoute != null && currentRoute != Routes.ONBOARD) {
@@ -75,13 +92,7 @@ fun GmgNav(vm: GrillViewModel) {
                         val selected = backStack?.destination?.hierarchy?.any { it.route == tab.route } == true
                         NavigationBarItem(
                             selected = selected,
-                            onClick = {
-                                nav.navigate(tab.route) {
-                                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
+                            onClick = { selectTab(tab.route) },
                             icon = { Icon(tab.icon, contentDescription = tab.label) },
                             label = { Text(tab.label) },
                         )
@@ -108,8 +119,8 @@ fun GmgNav(vm: GrillViewModel) {
                     onSetProbeTarget = vm::setProbeTarget,
                     onMeatOn = vm::markMeatOn,
                     onAbort = vm::abortCook,
-                    onNewCook = { nav.navigate(Routes.NEWCOOK) },
-                    onGoToGrills = { nav.navigate(Routes.GRILLS) },
+                    onNewCook = { selectTab(Routes.NEWCOOK) },
+                    onGoToGrills = { selectTab(Routes.GRILLS) },
                 )
             }
             composable(Routes.NEWCOOK) {
@@ -119,7 +130,16 @@ fun GmgNav(vm: GrillViewModel) {
                     onPreview = vm::preview,
                     onClearPreview = vm::clearPreview,
                     onStart = { meat, weight, probe, mode, finish -> vm.startCook(meat, weight, probe, mode, finish) },
-                    onDone = { nav.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } },
+                    onDone = { selectTab(Routes.HOME) },
+                )
+            }
+            composable(Routes.HISTORY) {
+                HistoryScreen(
+                    history = history,
+                    sessionLog = sessionLog,
+                    onLoad = vm::loadHistory,
+                    onOpen = vm::openSession,
+                    onClose = vm::closeSession,
                 )
             }
             composable(Routes.GRILLS) {
@@ -128,7 +148,7 @@ fun GmgNav(vm: GrillViewModel) {
                     onRunDiscovery = vm::runDiscovery,
                     onConnectHost = { host ->
                         vm.connectTo(host)
-                        nav.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } }
+                        selectTab(Routes.HOME)
                     },
                 )
             }
@@ -139,9 +159,11 @@ fun GmgNav(vm: GrillViewModel) {
                     onMaxPit = vm::setMaxPit,
                     onAutoCook = vm::setAutoCook,
                     onPush = vm::setPush,
+                    onNotifyLevel = vm::setNotifyLevel,
                     onDevMode = vm::setDevMode,
                     onTempUnit = vm::setTempUnit,
                     onWeightUnit = vm::setWeightUnit,
+                    onStopMonitoring = vm::stopMonitoring,
                 )
             }
         }

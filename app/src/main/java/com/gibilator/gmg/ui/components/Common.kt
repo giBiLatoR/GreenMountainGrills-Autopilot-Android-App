@@ -55,22 +55,25 @@ fun AnimatedTempReadout(
     unit: String,
     modifier: Modifier = Modifier,
     valueSize: Int = 22,
+    enabled: Boolean = true,
 ) {
     val animated by animateIntAsState(
         targetValue = valueF ?: 0,
         animationSpec = tween(600),
         label = "temp",
     )
+    // Greyed out until the grill is on.
+    val shown = if (enabled) color else com.gibilator.gmg.ui.theme.Muted.copy(alpha = 0.55f)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Text(
             text = if (valueF == null) "—" else fmtTempF(animated, unit),
-            color = color,
+            color = shown,
             fontWeight = FontWeight.Black,
             fontSize = valueSize.sp,
         )
         Text(
             text = label.uppercase(),
-            color = color.copy(alpha = 0.92f),
+            color = shown.copy(alpha = 0.92f),
             fontWeight = FontWeight.SemiBold,
             fontSize = (valueSize * 0.45f).sp,
             letterSpacing = 0.5.sp,
