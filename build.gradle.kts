@@ -5,10 +5,14 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
 }
 
-// The repo lives on an SMB network drive (X:). Gradle's incremental file
-// hashing/locking is unreliable on network shares, so all build OUTPUT is
-// redirected to a local disk. Sources stay on X:; only build/ moves.
-val localBuildBase = providers.gradleProperty("gmg.localBuildDir").orNull ?: "C:/gmg-build"
-allprojects {
-    layout.buildDirectory.set(file("$localBuildBase/${project.name}"))
+// Optional: redirect all build OUTPUT to a local disk. Useful when the repo
+// lives on a network share (SMB/NFS), where Gradle's incremental file
+// hashing/locking is unreliable. Opt in with:
+//   ./gradlew -Pgmg.localBuildDir=C:/gmg-build assembleDebug
+// Leaving it unset uses the normal per-module build/ dir (fine for local disks).
+val localBuildBase = providers.gradleProperty("gmg.localBuildDir").orNull
+if (!localBuildBase.isNullOrBlank()) {
+    allprojects {
+        layout.buildDirectory.set(file("$localBuildBase/${project.name}"))
+    }
 }
