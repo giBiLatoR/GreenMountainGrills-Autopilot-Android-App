@@ -66,6 +66,7 @@ fun HomeScreen(
     onSetProbeTarget: (Int, Int) -> Unit,
     onMeatOn: () -> Unit,
     onAbort: () -> Unit,
+    onResumeAutopilot: () -> Unit,
     onNewCook: () -> Unit,
     onGoToGrills: () -> Unit,
 ) {
@@ -115,7 +116,7 @@ fun HomeScreen(
             )
 
             if (cook != null && cook.active) {
-                LiveCookSection(cook, unit, onMeatOn, onAbort)
+                LiveCookSection(cook, unit, onMeatOn, onAbort, onResumeAutopilot)
                 if (state.samples.size >= 2) {
                     SectionCard("COOK PROGRESS VS PLAN") { CookChart(state.samples) }
                 }
@@ -172,6 +173,7 @@ private fun LiveCookSection(
     unit: String,
     onMeatOn: () -> Unit,
     onAbort: () -> Unit,
+    onResumeAutopilot: () -> Unit,
 ) {
     val pull = cook.pullF
     val probe = cook.probeF
@@ -197,6 +199,19 @@ private fun LiveCookSection(
                     color = Muted,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+            }
+            if (cook.autopilotPaused) {
+                Text(
+                    "✋ Manual control — autopilot paused.",
+                    color = Ember,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                Button(
+                    onClick = onResumeAutopilot,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ember),
+                ) { Text("▶  Resume Auto-Cook", fontWeight = FontWeight.Bold) }
             }
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // "Meat is on" only matters before the cook is tracking — once it's

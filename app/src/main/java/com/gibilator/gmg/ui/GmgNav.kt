@@ -119,6 +119,7 @@ fun GmgNav(vm: GrillViewModel, onQuit: () -> Unit) {
                     onSetProbeTarget = vm::setProbeTarget,
                     onMeatOn = vm::markMeatOn,
                     onAbort = vm::abortCook,
+                    onResumeAutopilot = vm::resumeAutopilot,
                     onNewCook = { selectTab(Routes.NEWCOOK) },
                     onGoToGrills = { selectTab(Routes.GRILLS) },
                 )

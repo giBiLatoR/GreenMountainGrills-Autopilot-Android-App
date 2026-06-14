@@ -32,6 +32,7 @@ data class CookView(
     val deltaF: Double?,
     val projection: CookProjection?,
     val probeIndex: Int,
+    val autopilotPaused: Boolean = false,
 )
 
 /** Everything the UI renders for the selected grill. Immutable snapshot. */

@@ -167,7 +167,16 @@ class GrillRepository(
             )
             return
         }
+        // A manual setpoint change during an autonomous cook hands control to the
+        // user — pause the autopilot so it doesn't immediately steer it back.
+        cookManager.pauseAutopilot()
         command { client?.setGrillTemp(max(150, min(maxPitF, f))) }
+    }
+
+    /** Re-engage autonomous control after a manual override. */
+    fun resumeAutopilot() {
+        cookManager.resumeAutopilot()
+        _state.value.snapshot?.let { _state.value = _state.value.copy(cook = buildCookView(it)) }
     }
     suspend fun setProbeTarget(probe: Int, f: Int) = command { client?.setProbeTarget(probe, f) }
     suspend fun powerOn() = command { client?.powerOn() }
@@ -255,6 +264,7 @@ class GrillRepository(
             deltaF = delta,
             projection = s.projection,
             probeIndex = s.probeIndex,
+            autopilotPaused = s.autopilotPaused,
         )
     }
 

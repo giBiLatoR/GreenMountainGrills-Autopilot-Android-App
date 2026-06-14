@@ -85,6 +85,13 @@ class CookSession(
      * sent during its cold-start/ignition sequence.
      */
     var pitTargetApplied: Boolean = false
+
+    /**
+     * True once the user manually overrode the grill temperature during an
+     * autonomous cook. The control loop stops adjusting until they resume, so the
+     * autopilot doesn't fight a manual change.
+     */
+    var autopilotPaused: Boolean = false
 }
 
 /** Outcome of pre-flight validation. */
@@ -455,6 +462,7 @@ class CookManager(
     private fun wasAbove(s: CookSession, thresholdF: Int): Boolean = s.lastPitSetF >= thresholdF
 
     private suspend fun maybeAdjustPit(s: CookSession, snapshot: GmgSnapshot, probeF: Double, now: Double) {
+        if (s.autopilotPaused) return // user has manual control until they resume
         val cookStarted = s.cookStartedAt ?: return
         val elapsedH = (now - cookStarted) / 3600
         val expected = expectedProbeAt(s.projection, elapsedH)
@@ -527,6 +535,25 @@ class CookManager(
         s.cookStartedAt = clock()
         s.preheatReadySince = null
         emit(1, "Cook started", "Meat-on override — tracking the cook now.")
+    }
+
+    /** User manually changed the grill temp during an autonomous cook — stop
+     *  auto-adjusting until they resume, so the autopilot doesn't fight them. */
+    fun pauseAutopilot() {
+        val s = session ?: return
+        if (s.mode != CookMode.AUTONOMOUS || s.autopilotPaused) return
+        if (s.state in setOf(CookState.COMPLETE, CookState.ABORTED, CookState.IDLE)) return
+        s.autopilotPaused = true
+        emit(1, "Autopilot paused", "You've taken manual control of the grill. Tap “Resume Auto-Cook” to hand it back.")
+    }
+
+    /** Re-engage autonomous control after a manual override. */
+    fun resumeAutopilot() {
+        val s = session ?: return
+        if (!s.autopilotPaused) return
+        s.autopilotPaused = false
+        s.lastAdjAt = 0.0 // let it correct promptly
+        emit(1, "Autopilot resumed", "Back on autopilot — I'll steer the grill to plan.")
     }
 
     private suspend fun setPitTarget(pitF: Int, reason: String) {

@@ -124,6 +124,7 @@ class GrillViewModel(app: Application) : AndroidViewModel(app) {
 
     fun abortCook() = viewModelScope.launch { repo.abortCook() }
     fun markMeatOn() = repo.markMeatOn()
+    fun resumeAutopilot() = repo.resumeAutopilot()
 
     // --- discovery ---------------------------------------------------------
 
